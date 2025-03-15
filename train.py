@@ -1,6 +1,6 @@
 import argparse
 import torch
-
+import os
 from dassl.utils import setup_logger, set_random_seed, collect_env_info
 from dassl.config import get_cfg_default
 from dassl.engine import build_trainer
@@ -29,8 +29,7 @@ import trainers.zsclip_cupl
 import trainers.maple
 import trainers.independentVL
 import trainers.promptsrc
-import trainers.protext
-
+import trainers.protext_modified
 def print_args(args, cfg):
     print("***************")
     print("** Arguments **")
@@ -139,7 +138,7 @@ def extend_cfg(cfg):
     cfg.TRAINER.PROTEXT.L_TWO_WEIGHT = 1000
     cfg.TRAINER.PROTEXT.L_TWO_NORM = True
     cfg.TRAINER.PROTEXT.CROSS_DATASET = False
-
+    
     # Config for independent Vision Language prompting (independent-vlp)
     cfg.TRAINER.IVLP = CN()
     cfg.TRAINER.IVLP.N_CTX_VISION = 2  # number of context vectors at the vision branch
@@ -176,6 +175,7 @@ def setup_cfg(args):
 
 
 def main(args):
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     cfg = setup_cfg(args)
     if cfg.SEED >= 0:
         print("Setting fixed seed: {}".format(cfg.SEED))
@@ -201,17 +201,20 @@ def main(args):
 
 
 if __name__ == "__main__":
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", type=str, default="", help="path to dataset")
-    parser.add_argument("--output-dir", type=str, default="", help="output directory")
+    parser.add_argument("--root", type=str, default="data", help="path to dataset")
+    parser.add_argument("--output-dir", type=str, default="test_outpout", help="output directory")
+
     parser.add_argument(
-        "--resume",
-        type=str,
-        default="",
-        help="checkpoint directory (from which the training resumes)",
+    "--resume",
+    type=str,
+    default="",
+    help="checkpoint directory (from which the training resumes)",
     )
+
     parser.add_argument(
-        "--seed", type=int, default=-1, help="only positive value enables a fixed seed"
+        "--seed", type=int, default=1, help="only positive value enables a fixed seed"
     )
     parser.add_argument(
         "--source-domains", type=str, nargs="+", help="source domains for DA/DG"
@@ -223,15 +226,15 @@ if __name__ == "__main__":
         "--transforms", type=str, nargs="+", help="data augmentation methods"
     )
     parser.add_argument(
-        "--config-file", type=str, default="", help="path to config file"
+        "--config-file", type=str, default="configs/trainers/ProText/base2novel/fgvc_aircraft.yaml", help="path to config file"
     )
     parser.add_argument(
         "--dataset-config-file",
         type=str,
-        default="",
+        default="configs/datasets/fgvc_aircraft.yaml",
         help="path to config file for dataset setup",
     )
-    parser.add_argument("--trainer", type=str, default="", help="name of trainer")
+    parser.add_argument("--trainer", type=str, default="ProText", help="name of trainer")
     parser.add_argument("--backbone", type=str, default="", help="name of CNN backbone")
     parser.add_argument("--head", type=str, default="", help="name of head")
     parser.add_argument("--eval-only", action="store_true", help="evaluation only")
@@ -244,9 +247,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--load-epoch", type=int, help="load model weights at this epoch for evaluation"
     )
-    parser.add_argument(
-        "--no-train", action="store_true", help="do not call trainer.train()"
-    )
+    parser.add_argument("--no-train", action="store_true", help="do not call trainer.train()")
     parser.add_argument(
         "opts",
         default=None,

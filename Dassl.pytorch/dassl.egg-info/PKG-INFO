@@ -1,4 +1,4 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.2
 Name: dassl
 Version: 0.6.3
 Summary: Dassl: Domain adaptation and semi-supervised learning
@@ -6,8 +6,28 @@ Home-page: https://github.com/KaiyangZhou/Dassl.pytorch
 Author: Kaiyang Zhou
 License: MIT
 Keywords: Domain Adaptation,Domain Generalization,Semi-Supervised Learning,Pytorch
-Platform: UNKNOWN
 License-File: LICENSE
+Requires-Dist: flake8==3.7.9
+Requires-Dist: yapf==0.29.0
+Requires-Dist: isort==4.3.21
+Requires-Dist: yacs
+Requires-Dist: gdown
+Requires-Dist: tb-nightly
+Requires-Dist: future
+Requires-Dist: scipy
+Requires-Dist: scikit-learn
+Requires-Dist: tqdm
+Requires-Dist: ftfy
+Requires-Dist: regex
+Requires-Dist: wilds==1.2.2
+Requires-Dist: tabulate
+Dynamic: author
+Dynamic: description
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: requires-dist
+Dynamic: summary
 
 # Dassl
 
@@ -288,5 +308,3 @@ If you find this code useful to your research, please give credit to the followi
   publisher={IEEE}
 }
 ```
-
-
