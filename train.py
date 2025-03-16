@@ -138,6 +138,22 @@ def extend_cfg(cfg):
     cfg.TRAINER.PROTEXT.L_TWO_WEIGHT = 1000
     cfg.TRAINER.PROTEXT.L_TWO_NORM = True
     cfg.TRAINER.PROTEXT.CROSS_DATASET = False
+
+    # Config for PROTEXT_MODIFIED
+    cfg.TRAINER.PROTEXT_MODIFIED = CN()
+    cfg.TRAINER.PROTEXT_MODIFIED.N_CTX_VISION = 0  # it must be set to 0 as ProText does not adapt vision side at all
+    cfg.TRAINER.PROTEXT_MODIFIED.N_CTX_TEXT = 4  # number of context vectors at the language branch
+    cfg.TRAINER.PROTEXT_MODIFIED.CTX_INIT = "a photo of a"  # initialization words
+    cfg.TRAINER.PROTEXT_MODIFIED.PREC = "fp16"  # fp16, fp32, amp
+    cfg.TRAINER.PROTEXT_MODIFIED.PROMPT_DEPTH_VISION = 0  # it must be set to 0 as ProText does not adapt vision side at all
+    cfg.TRAINER.PROTEXT_MODIFIED.PROMPT_DEPTH_TEXT = 9  # Max 12, Min 0, if 0, it will be using shallow IVLP prompting (J=1)
+    cfg.DATASET.SUBSAMPLE_CLASSES = "all"  # all, base or new
+    cfg.TRAINER.PROTEXT_MODIFIED.GPT_PATH = "templates/CuPL_image_prompts.json"
+    cfg.TRAINER.PROTEXT_MODIFIED.USE_TEMPLATES = False
+    cfg.TRAINER.PROTEXT_MODIFIED.USE_ATTRIBUTE_DATA = False
+    cfg.TRAINER.PROTEXT_MODIFIED.L_TWO_WEIGHT = 1000
+    cfg.TRAINER.PROTEXT_MODIFIED.L_TWO_NORM = True
+    cfg.TRAINER.PROTEXT_MODIFIED.CROSS_DATASET = False
     
     # Config for independent Vision Language prompting (independent-vlp)
     cfg.TRAINER.IVLP = CN()

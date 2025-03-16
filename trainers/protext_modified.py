@@ -163,7 +163,7 @@ class CustomCLIP(nn.Module):
         self.total_epochs = cfg.OPTIM.MAX_EPOCH
         self.n_cls = len(classnames)
 
-    def forward(self, inputs, outputs=None):
+    def forward(self, inputs, image, outputs=None):
 
         if self.prompt_learner.training:
             tokenized_texts_labels = outputs
@@ -199,7 +199,7 @@ class CustomCLIP(nn.Module):
 
 
 @TRAINER_REGISTRY.register()
-class ProText(TrainerX):
+class ProText_Modified(TrainerX):
     def check_cfg(self, cfg):
         assert cfg.TRAINER.PROTEXT.PREC in ["fp16", "fp32", "amp"]
 
@@ -256,7 +256,7 @@ class ProText(TrainerX):
             self.model = nn.DataParallel(self.model)
         """
     def forward_backward(self, batch):
-        image, label = self.parse_batch_train(batch)
+        prompt, label_prompt, image = self.parse_batch_train(batch)
 
         model = self.model
         optim = self.optim
@@ -265,13 +265,13 @@ class ProText(TrainerX):
         prec = self.cfg.TRAINER.PROTEXT.PREC
         if prec == "amp":
             with autocast():
-                loss = model(image, label)
+                loss = model(prompt, label_prompt, image)
             optim.zero_grad()
             scaler.scale(loss).backward()
             scaler.step(optim)
             scaler.update()
         else:
-            output_inputs, output_targets = model(image, label)
+            output_inputs, output_targets = model(prompt, label_prompt, image)
 
             if self.cfg.TRAINER.PROTEXT.L_TWO_NORM:
                 loss_ftn = torch.nn.MSELoss()
@@ -294,9 +294,11 @@ class ProText(TrainerX):
     def parse_batch_train(self, batch):
         input = batch["input_text"]
         label = batch["output_text"]
+        image = batch["image"]
         input = input.to(self.device).squeeze(1)
         label = label.to(self.device).squeeze(1)
-        return input, label
+        image = image.to(self.device).squeeze(1)
+        return input, label, image
 
     def load_model(self, directory, epoch=None):
         if not directory:

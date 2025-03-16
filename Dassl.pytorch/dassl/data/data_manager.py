@@ -26,7 +26,9 @@ def build_data_loader(
         class_names=None
 ):
     # Make Data Loader for Text-Only data
-    if is_train and cfg.TRAINER.NAME == "ProText":
+    if cfg.TRAINER.NAME == "ProText_Modified":
+        data_source = DatasetWrapper_MultiModal(cfg, class_names, data_source, transform=tfm)
+    elif is_train and cfg.TRAINER.NAME == "ProText":
         data_source = DatasetWrapper_TextOnly(cfg, class_names)
     # Build sampler
     sampler = build_sampler(
@@ -41,7 +43,17 @@ def build_data_loader(
     if dataset_wrapper is None:
         dataset_wrapper = DatasetWrapper
 
-    if is_train and cfg.TRAINER.NAME == "ProText":
+    if is_train and cfg.TRAINER.NAME == "ProText_Modified":
+        # Build data loader for  text-image data
+        data_loader = torch.utils.data.DataLoader(
+            data_source,
+            batch_size=batch_size,
+            sampler=sampler,
+            num_workers=cfg.DATALOADER.NUM_WORKERS,
+            drop_last=is_train and len(data_source) >= batch_size,
+            pin_memory=(torch.cuda.is_available() and cfg.USE_CUDA)
+        )
+    elif is_train and cfg.TRAINER.NAME == "ProText":
         # Build data loader for text dataset only!!!
         data_loader = torch.utils.data.DataLoader(
             data_source,
@@ -141,7 +153,8 @@ class DataManager:
                 batch_size=cfg.DATALOADER.TEST.BATCH_SIZE,
                 tfm=tfm_test,
                 is_train=False,
-                dataset_wrapper=dataset_wrapper
+                dataset_wrapper=dataset_wrapper,
+                class_names=getattr(dataset, 'classnames', None)
             )
 
         # Build test_loader
@@ -152,7 +165,8 @@ class DataManager:
             batch_size=cfg.DATALOADER.TEST.BATCH_SIZE,
             tfm=tfm_test,
             is_train=False,
-            dataset_wrapper=dataset_wrapper
+            dataset_wrapper=dataset_wrapper,
+            class_names=getattr(dataset, 'classnames', None)
         )
 
         # Attributes
@@ -367,4 +381,101 @@ class DatasetWrapper_TextOnly(TorchDataset):
         label = self.one_hot_labels[idx]
         # No transforms as data is text only for now!
         output = {"input_text": single_input_text, "output_text": single_input_label, "label": label}
+        return output
+
+class DatasetWrapper_MultiModal(TorchDataset):
+    def __init__(self, cfg, class_names, dataset=None,transform=None):
+        self.cfg = cfg
+        self.class_names = class_names
+        self.dataset = dataset
+        self.transform = transform
+
+        # 清空之前的列表
+        self.text_input_list = []
+        self.text_label_list = []
+        self.one_hot_labels = []
+        self.image_paths = []
+        self.gpt_descriptions = []
+
+        # 加载 GPT 描述
+        if hasattr(cfg.TRAINER.PROTEXT_MODIFIED, 'GPT_PATH') and cfg.TRAINER.PROTEXT_MODIFIED.GPT_PATH:
+            with open(cfg.TRAINER.PROTEXT_MODIFIED.GPT_PATH, 'r') as f:
+                gpt_prompt_dict = json.load(f)
+        else:
+            gpt_prompt_dict = {}
+
+        nctx_learnable = cfg.TRAINER.PROTEXT_MODIFIED.N_CTX_TEXT
+
+        if cfg.TRAINER.NAME == "ProText_Modified":
+            for idx, class_name in enumerate(self.class_names):
+                # 获取类别对应的图像
+                if self.dataset and hasattr(self.dataset[0], 'classname'):
+                    class_images = []
+                    for item in self.dataset:
+                        if item.label == idx and item.classname == class_name:
+                            class_images.append(item)
+
+                    # 获取类别对应的 GPT 描述
+                    gpt_descriptions = gpt_prompt_dict.get(class_name, [])
+
+                    # 生成文本提示
+                    input_texts = [
+                        t.format(class_name.replace("_", " "))
+                        for t in IMAGENET_TEMPLATES[1:]
+                    ]
+
+                    # 遍历每个图像
+                    for item in class_images:
+                        # 遍历每个文本提示
+                        for input_text in input_texts:
+                            # 遍历每个 GPT 描述
+                            for gpt_desc in gpt_descriptions:
+                                # 构建标签文本
+                                if nctx_learnable <= 4:
+                                    label_text = f"a photo of a {class_name.replace('_', ' ')}."
+                                else:
+                                    prompt_prefix = " ".join(["X"] * nctx_learnable)
+                                    label_text = f"{prompt_prefix} {class_name}."
+
+                                # prompt with GPT description
+                                self.text_input_list.append(input_text)
+                                # prompt with learnable "X" or CTX_init
+                                self.text_label_list.append(label_text)
+                                # index of the class
+                                self.one_hot_labels.append(idx)
+                                # corresponding image path
+                                self.image_paths.append(item.impath)
+                                # extract GPT description
+                                self.gpt_descriptions.append(gpt_desc)
+
+        # 打印数据统计信息
+        print(f"Total samples for ProText_Modified: {len(self.text_input_list)}")
+        print(f"Images per class: {len(class_images)}")
+        print(f"Text prompts per class: {len(input_texts)}")
+        print(f"GPT descriptions per class: {len(gpt_descriptions)}")
+
+    def __len__(self):
+        return len(self.text_input_list)
+
+    def __getitem__(self, idx):
+        # 读取图像并变换
+        img = read_image(self.image_paths[idx])
+        img = self.transform(img)
+
+        # Tokenize文本
+        single_input_text = clip.tokenize(self.text_input_list[idx])
+        single_label_text = clip.tokenize(self.text_label_list[idx])
+        
+        # GPT描述处理
+        gpt_text = clip.tokenize(self.gpt_descriptions[idx])
+
+        # 返回多模态数据
+        output = {
+            "image": img,
+            "input_text": single_input_text, 
+            "output_text": single_label_text, 
+            "label": self.one_hot_labels[idx],
+            "gpt_text": gpt_text
+        }
+        
         return output
